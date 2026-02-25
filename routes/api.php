@@ -11,9 +11,23 @@ Route::prefix('buyers')->group(function () {
     Route::post('/social-auth', [AuthController::class, 'socialSignup']);
 });
 
+// VENDORS ROUTES
+Route::prefix('vendors')->group(function () {
+    Route::post('/register', [VendorAuthController::class, 'register']);
+    Route::post('/login', [VendorAuthController::class, 'login']);
+});
+
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
+    // Buyer protected routes
     Route::post('/buyers/update-profile', [AuthController::class, 'updateProfile']);
+    
+    // Vendor protected routes
+    Route::prefix('vendors')->group(function () {
+        Route::post('/logout', [VendorAuthController::class, 'logout']);
+        Route::get('/profile', [VendorAuthController::class, 'profile']);
+        Route::post('/update-profile', [VendorAuthController::class, 'updateProfile']);
+    });
 });
 
 // Example Protected Route
