@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\api\buyers;;
+namespace App\Http\Controllers\api\buyers;
 
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -22,8 +22,8 @@ class AuthController extends Controller
             'name'     => 'required|string|max:255',
             'email'    => 'required|string|email|max:255|unique:users',
             'phone'    => 'required|string|max:20',
-            'address'  => 'nullable|string', // Optional as requested
-            'password' => 'required|string|min:8|confirmed', // Requires 'password_confirmation'
+            'address'  => 'nullable|string',
+            'password' => 'required|string|min:8|confirmed',
         ]);
 
         if ($validator->fails()) {
@@ -67,15 +67,31 @@ class AuthController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json($validator->errors(), 422);
+            return response()->json([
+                'status' => 'error',
+                'errors' => $validator->errors()
+            ], 422);
         }
 
         $provider = $request->provider;
         $token = $request->access_token;
 
         try {
-            // Get user info from Socialite using the token from frontend
-            $socialUser = Socialite::driver($provider)->userFromToken($token);
+            // Force SSL bypass for local development if needed
+            if (app()->environment('local')) {
+                config(["services.$provider.guzzle.verify" => false]);
+            }
+
+            // Get user info using stateless mode (required for APIs)
+            $socialUser = Socialite::driver($provider)->stateless()->userFromToken($token);
+
+            // Validation: Ensure we actually got an email back from the provider
+            if (!$socialUser->getEmail()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => "Could not retrieve email from $provider. Please ensure your account has a verified email."
+                ], 422);
+            }
 
             // Check if user exists, or create a new one
             $user = User::updateOrCreate(
@@ -84,8 +100,9 @@ class AuthController extends Controller
                     'name'          => $socialUser->getName(),
                     'provider_id'   => $socialUser->getId(),
                     'provider_name' => $provider,
-                    // Note: Phone and Address aren't usually provided by Google/FB
-                    // and would need to be updated by the user later.
+                    // Note: Phone and Address aren't provided by OAuth.
+                    // If your DB requires phone, you might need to make it nullable
+                    // in your migration or prompt the user to add it later.
                 ]
             );
 
@@ -107,4 +124,35 @@ class AuthController extends Controller
             ], 401);
         }
     }
+
+    /**
+ * Update User Profile (for adding phone/address after social login)
+ */
+public function updateProfile(Request $request)
+{
+    $user = $request->user(); // Gets the authenticated user via Sanctum
+
+    $validator = Validator::make($request->all(), [
+        'phone'   => 'required|string|max:20',
+        'address' => 'required|string|max:500',
+    ]);
+
+    if ($validator->fails()) {
+        return response()->json([
+            'status' => 'error',
+            'errors' => $validator->errors()
+        ], 422);
+    }
+
+    $user->update([
+        'phone'   => $request->phone,
+        'address' => $request->address,
+    ]);
+
+    return response()->json([
+        'status' => 'success',
+        'message' => 'Profile updated successfully',
+        'data' => $user
+    ]);
+}
 }

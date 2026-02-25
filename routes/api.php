@@ -11,6 +11,11 @@ Route::prefix('buyers')->group(function () {
     Route::post('/social-auth', [AuthController::class, 'socialSignup']);
 });
 
+// Protected routes
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/buyers/update-profile', [AuthController::class, 'updateProfile']);
+});
+
 // Example Protected Route
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
@@ -19,3 +24,5 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
+
+
