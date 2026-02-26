@@ -12,7 +12,7 @@ use App\Http\Controllers\Api\Vendor\AuthController as VendorAuthController;
 */
 
 // --- BUYER ROUTES ---
-Route::prefix('buyers')->group(function () {
+Route::prefix('v1/buyers')->group(function () {
 
     // 1. Public Auth Routes
     Route::post('/register', [AuthController::class, 'register']);
@@ -35,7 +35,7 @@ Route::prefix('buyers')->group(function () {
 
 
 // VENDORS ROUTES
-Route::prefix('vendors')->group(function () {
+Route::prefix('v1/vendors')->group(function () {
     Route::post('/register', [VendorAuthController::class, 'register']);
     Route::post('/login', [VendorAuthController::class, 'login']);
 });
