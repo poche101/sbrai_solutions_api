@@ -5,12 +5,34 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\Buyers\AuthController;
 use App\Http\Controllers\Api\Vendor\AuthController as VendorAuthController;
 
+/*
+|--------------------------------------------------------------------------
+| API Routes
+|--------------------------------------------------------------------------
+*/
 
-//BUYERS ROUTE
+// --- BUYER ROUTES ---
 Route::prefix('buyers')->group(function () {
+
+    // 1. Public Auth Routes
     Route::post('/register', [AuthController::class, 'register']);
+    Route::post('/login', [AuthController::class, 'login']);
     Route::post('/social-auth', [AuthController::class, 'socialSignup']);
+
+    // 2. Protected Routes (Require Sanctum Token)
+    Route::middleware('auth:sanctum')->group(function () {
+
+        // Profile Management
+        Route::post('/update-profile', [AuthController::class, 'updateProfile']);
+        Route::post('/logout', [AuthController::class, 'logout']);
+
+        // User Data
+        Route::get('/user', function (Request $request) {
+            return $request->user();
+        });
+    });
 });
+
 
 // VENDORS ROUTES
 Route::prefix('vendors')->group(function () {
@@ -22,7 +44,7 @@ Route::prefix('vendors')->group(function () {
 Route::middleware('auth:sanctum')->group(function () {
     // Buyer protected routes
     Route::post('/buyers/update-profile', [AuthController::class, 'updateProfile']);
-    
+
     // Vendor protected routes
     Route::prefix('vendors')->group(function () {
         Route::post('/logout', [VendorAuthController::class, 'logout']);
@@ -39,5 +61,3 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
-
-

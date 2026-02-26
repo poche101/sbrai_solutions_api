@@ -17,7 +17,6 @@ class AuthController extends Controller
      */
     public function register(Request $request)
     {
-        // 1. Validation
         $validator = Validator::make($request->all(), [
             'name'     => 'required|string|max:255',
             'email'    => 'required|string|email|max:255|unique:users',
@@ -33,7 +32,6 @@ class AuthController extends Controller
             ], 422);
         }
 
-        // 2. Create User
         $user = User::create([
             'name'     => $request->name,
             'email'    => $request->email,
@@ -42,7 +40,6 @@ class AuthController extends Controller
             'password' => Hash::make($request->password),
         ]);
 
-        // 3. Issue Token
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
@@ -54,6 +51,47 @@ class AuthController extends Controller
                 'token_type' => 'Bearer',
             ]
         ], 201);
+    }
+
+    /**
+     * Handle Standard User Login (Email & Password)
+     */
+    public function login(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'email'    => 'required|string|email',
+            'password' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        // Find user by email
+        $user = User::where('email', $request->email)->first();
+
+        // Check if user exists and password is correct
+        if (!$user || !Hash::check($request->password, $user->password)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Invalid credentials provided.'
+            ], 401);
+        }
+
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Login successful',
+            'data' => [
+                'user' => $user,
+                'access_token' => $token,
+                'token_type' => 'Bearer',
+            ]
+        ]);
     }
 
     /**
@@ -77,32 +115,25 @@ class AuthController extends Controller
         $token = $request->access_token;
 
         try {
-            // Force SSL bypass for local development if needed
             if (app()->environment('local')) {
                 config(["services.$provider.guzzle.verify" => false]);
             }
 
-            // Get user info using stateless mode (required for APIs)
             $socialUser = Socialite::driver($provider)->stateless()->userFromToken($token);
 
-            // Validation: Ensure we actually got an email back from the provider
             if (!$socialUser->getEmail()) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => "Could not retrieve email from $provider. Please ensure your account has a verified email."
+                    'message' => "Could not retrieve email from $provider."
                 ], 422);
             }
 
-            // Check if user exists, or create a new one
             $user = User::updateOrCreate(
                 ['email' => $socialUser->getEmail()],
                 [
                     'name'          => $socialUser->getName(),
                     'provider_id'   => $socialUser->getId(),
                     'provider_name' => $provider,
-                    // Note: Phone and Address aren't provided by OAuth.
-                    // If your DB requires phone, you might need to make it nullable
-                    // in your migration or prompt the user to add it later.
                 ]
             );
 
@@ -126,33 +157,47 @@ class AuthController extends Controller
     }
 
     /**
- * Update User Profile (for adding phone/address after social login)
- */
-public function updateProfile(Request $request)
-{
-    $user = $request->user(); // Gets the authenticated user via Sanctum
+     * Update User Profile
+     */
+    public function updateProfile(Request $request)
+    {
+        $user = $request->user();
 
-    $validator = Validator::make($request->all(), [
-        'phone'   => 'required|string|max:20',
-        'address' => 'required|string|max:500',
-    ]);
+        $validator = Validator::make($request->all(), [
+            'phone'   => 'required|string|max:20',
+            'address' => 'required|string|max:500',
+        ]);
 
-    if ($validator->fails()) {
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $user->update([
+            'phone'   => $request->phone,
+            'address' => $request->address,
+        ]);
+
         return response()->json([
-            'status' => 'error',
-            'errors' => $validator->errors()
-        ], 422);
+            'status' => 'success',
+            'message' => 'Profile updated successfully',
+            'data' => $user
+        ]);
     }
 
-    $user->update([
-        'phone'   => $request->phone,
-        'address' => $request->address,
-    ]);
+    /**
+     * Handle User Logout
+     */
+    public function logout(Request $request)
+    {
+        // Revoke the token that was used to authenticate the current request
+        $request->user()->currentAccessToken()->delete();
 
-    return response()->json([
-        'status' => 'success',
-        'message' => 'Profile updated successfully',
-        'data' => $user
-    ]);
-}
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Logged out successfully'
+        ]);
+    }
 }
