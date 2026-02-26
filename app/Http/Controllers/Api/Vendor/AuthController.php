@@ -60,14 +60,18 @@ class AuthController extends Controller
             'password' => 'required',
         ]);
 
-        if (!Auth::guard('vendor')->attempt($request->only('email', 'password'))) {
+        // Find the vendor by email
+        $vendor = Vendor::where('email', $request->email)->first();
+
+        // Check if vendor exists and password is correct
+        if (!$vendor || !Hash::check($request->password, $vendor->password)) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Invalid login credentials'
             ], 401);
         }
-
-        $vendor = Vendor::where('email', $request->email)->first();
+        
+        // Create new token
         $token = $vendor->createToken('vendor_auth_token')->plainTextToken;
 
         return response()->json([
