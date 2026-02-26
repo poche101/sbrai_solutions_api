@@ -3,7 +3,8 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\Buyers\AuthController;
-use App\Http\Controllers\Api\Vendor\AuthController as VendorAuthController;
+use App\Http\Controllers\Api\Buyer\AuthController as BuyerAuth;
+use App\Http\Controllers\Api\Vendor\AuthController as VendorAuth;
 
 /*
 |--------------------------------------------------------------------------
