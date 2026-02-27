@@ -3,8 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\Buyers\AuthController;
-use App\Http\Controllers\Api\Buyer\AuthController as BuyerAuth;
-use App\Http\Controllers\Api\Vendor\AuthController as VendorAuth;
+use App\Http\Controllers\Api\Vendors\VendorAuthController;
 
 /*
 |--------------------------------------------------------------------------
@@ -12,53 +11,61 @@ use App\Http\Controllers\Api\Vendor\AuthController as VendorAuth;
 |--------------------------------------------------------------------------
 */
 
-// --- BUYER ROUTES ---
+// --- 1. BUYER ROUTES (v1/buyers) ---
 Route::prefix('v1/buyers')->group(function () {
 
-    // 1. Public Auth Routes
+    // Public Auth Routes
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
     Route::post('/social-auth', [AuthController::class, 'socialSignup']);
 
-    // 2. Protected Routes (Require Sanctum Token)
+    // Protected Routes (Require Sanctum Token)
     Route::middleware('auth:sanctum')->group(function () {
 
-        // Profile Management
-        Route::post('/update-profile', [AuthController::class, 'updateProfile']);
+        // Verification & OTP (Throttled to 3 requests per minute)
+        Route::middleware('throttle:3,1')->group(function () {
+            Route::post('/verify/email/send', [AuthController::class, 'sendEmailOtp']);
+            Route::post('/verify/phone/send', [AuthController::class, 'sendPhoneOtp']);
+        });
+
+        // OTP Confirmation
+        Route::post('/verify/email/confirm', [AuthController::class, 'verifyEmail']);
+        Route::post('/verify/phone/confirm', [AuthController::class, 'verifyPhone']);
+
+        // Authenticated Session Management
         Route::post('/logout', [AuthController::class, 'logout']);
 
-        // User Data
-        Route::get('/user', function (Request $request) {
-            return $request->user();
+        // Routes requiring Email/Phone Verification
+        Route::middleware('verified_api')->group(function () {
+            Route::get('/user', function (Request $request) {
+                return $request->user();
+            });
+            Route::post('/update-profile', [AuthController::class, 'updateProfile']);
         });
     });
 });
 
-
-// VENDORS ROUTES
+// --- 2. VENDOR ROUTES (v1/vendors) ---
 Route::prefix('v1/vendors')->group(function () {
+
+    // Public Vendor Auth
     Route::post('/register', [VendorAuthController::class, 'register']);
     Route::post('/login', [VendorAuthController::class, 'login']);
-});
 
-// Protected routes
-Route::middleware('auth:sanctum')->group(function () {
-    // Buyer protected routes
-    Route::post('/buyers/update-profile', [AuthController::class, 'updateProfile']);
-
-    // Vendor protected routes
-    Route::prefix('vendors')->group(function () {
+    // Protected Vendor Routes
+    Route::middleware('auth:sanctum')->group(function () {
         Route::post('/logout', [VendorAuthController::class, 'logout']);
-        Route::get('/profile', [VendorAuthController::class, 'profile']);
-        Route::post('/update-profile', [VendorAuthController::class, 'updateProfile']);
+
+        // Verified Vendor Access
+        Route::middleware('verified_api')->group(function () {
+            Route::get('/profile', [VendorAuthController::class, 'profile']);
+            Route::post('/update-profile', [VendorAuthController::class, 'updateProfile']);
+        });
     });
 });
 
-// Example Protected Route
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
+// --- 3. GLOBAL USER ROUTE ---
+// Shared route for any authenticated user to check identity
+Route::middleware(['auth:sanctum', 'verified_api'])->get('/user', function (Request $request) {
     return $request->user();
 });
-
-Route::get('/user', function (Request $request) {
-    return $request->user();
-})->middleware('auth:sanctum');
