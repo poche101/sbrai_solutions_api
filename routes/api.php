@@ -4,7 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\Buyers\AuthController;
 use App\Http\Controllers\Api\Vendors\VendorAuthController;
-
+use App\Http\Controllers\Api\Buyers\FavoriteController;
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -27,6 +27,10 @@ Route::prefix('v1/buyers')->group(function () {
             Route::post('/verify/email/send', [AuthController::class, 'sendEmailOtp']);
             Route::post('/verify/phone/send', [AuthController::class, 'sendPhoneOtp']);
         });
+
+        // Favourites - Cleaned up redundant middleware
+        Route::get('/favorites', [FavoriteController::class, 'index']);
+        Route::post('/favorites/toggle', [FavoriteController::class, 'toggle']);
 
         // OTP Confirmation
         Route::post('/verify/email/confirm', [AuthController::class, 'verifyEmail']);

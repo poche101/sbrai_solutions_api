@@ -65,4 +65,9 @@ class User extends Authenticatable
     {
         return !is_null($this->email_verified_at) && !is_null($this->phone_verified_at);
     }
+
+    public function favorites()
+{
+    return $this->belongsToMany(Product::class, 'favorites');
+}
 }
