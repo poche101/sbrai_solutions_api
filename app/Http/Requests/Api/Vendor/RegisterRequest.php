@@ -19,7 +19,7 @@ class RegisterRequest extends FormRequest
             'email' => 'required|string|email|max:255|unique:vendors',
             'phone_number' => 'required|string|max:20',
             'business_name' => 'required|string|max:255',
-            'nin' => 'nullable|string|size:11', // NIN is 11 digits
+            'nin' => 'nullable|string|size:11',
             'business_address' => 'required|string',
             'password' => ['required', 'confirmed', Password::defaults()],
         ];

@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\Buyers\AuthController;
 use App\Http\Controllers\Api\Vendor\AuthController as VendorAuthController;
+use App\Http\Controllers\Api\Vendor\NINVerificationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -38,6 +39,15 @@ Route::prefix('buyers')->group(function () {
 Route::prefix('vendors')->group(function () {
     Route::post('/register', [VendorAuthController::class, 'register']);
     Route::post('/login', [VendorAuthController::class, 'login']);
+
+
+        
+    Route::prefix('nin')->group(function () {
+        Route::post('/verify', [NINVerificationController::class, 'verify']);
+        Route::get('/{nin}/status', [NINVerificationController::class, 'checkStatus']);
+        Route::get('/{nin}/details', [NINVerificationController::class, 'getVerificationDetails']);
+        Route::get('/{nin}/history', [NINVerificationController::class, 'getHistory']);
+    });
 });
 
 // Protected routes
