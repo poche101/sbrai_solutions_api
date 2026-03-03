@@ -5,11 +5,10 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Laravel\Sanctum\HasApiTokens; // Required for API tokens
+use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasApiTokens, HasFactory, Notifiable;
 
     /**
@@ -20,11 +19,14 @@ class User extends Authenticatable
     protected $fillable = [
         'name',
         'email',
-        'phone',          
-        'address',       
+        'phone',
+        'address',
         'password',
-        'provider_id',    
-        'provider_name',  
+        'provider_id',
+        'provider_name',
+        'email_otp',        // Added for verification
+        'phone_otp',        // Added for verification
+        'phone_verified_at' // Added for verification
     ];
 
     /**
@@ -35,7 +37,10 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
-        'provider_id',    // Hidden for security
+        'provider_id',
+        'email_otp',
+        'phone_otp',
+        'otp_expires_at',
     ];
 
     /**
@@ -47,7 +52,22 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'phone_verified_at' => 'datetime', // Added cast
             'password' => 'hashed',
+            'otp_expires_at'    => 'datetime',
         ];
     }
+
+    /**
+     * Helper to check if user has completed both verifications.
+     */
+    public function isFullyVerified(): bool
+    {
+        return !is_null($this->email_verified_at) && !is_null($this->phone_verified_at);
+    }
+
+    public function favorites()
+{
+    return $this->belongsToMany(Product::class, 'favorites');
+}
 }

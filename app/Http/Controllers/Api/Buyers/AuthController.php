@@ -8,7 +8,9 @@ use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Laravel\Socialite\Facades\Socialite;
+use App\Notifications\SendOtpNotification;
 use Exception;
+use Twilio\Rest\Client as TwilioClient;
 
 class AuthController extends Controller
 {
@@ -70,10 +72,8 @@ class AuthController extends Controller
             ], 422);
         }
 
-        // Find user by email
         $user = User::where('email', $request->email)->first();
 
-        // Check if user exists and password is correct
         if (!$user || !Hash::check($request->password, $user->password)) {
             return response()->json([
                 'status' => 'error',
@@ -131,9 +131,10 @@ class AuthController extends Controller
             $user = User::updateOrCreate(
                 ['email' => $socialUser->getEmail()],
                 [
-                    'name'          => $socialUser->getName(),
-                    'provider_id'   => $socialUser->getId(),
-                    'provider_name' => $provider,
+                    'name'              => $socialUser->getName(),
+                    'provider_id'       => $socialUser->getId(),
+                    'provider_name'     => $provider,
+                    'email_verified_at' => now(), // Social users are pre-verified
                 ]
             );
 
@@ -154,6 +155,107 @@ class AuthController extends Controller
                 'message' => 'Authentication failed: ' . $e->getMessage()
             ], 401);
         }
+    }
+
+    /**
+     * EMAIL VERIFICATION METHODS
+     */
+    public function sendEmailOtp(Request $request)
+    {
+        $user = $request->user();
+        $otp = rand(100000, 999999);
+
+        // FIXED: Combined the OTP and Expiry into the update array correctly
+        $user->update([
+            'email_otp' => $otp,
+            'otp_expires_at' => now()->addMinutes(10)
+        ]);
+
+        $user->notify(new SendOtpNotification($otp));
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Verification code sent to your email.'
+        ]);
+    }
+
+    public function verifyEmail(Request $request)
+    {
+        $request->validate(['otp' => 'required|string']);
+        $user = $request->user();
+
+        // Optional: Check if OTP is expired if you use the otp_expires_at column
+        if ($user->email_otp === $request->otp) {
+            $user->update([
+                'email_verified_at' => now(),
+                'email_otp' => null,
+                'otp_expires_at' => null
+            ]);
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Email verified successfully.'
+            ]);
+        }
+
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Invalid or expired OTP.'
+        ], 422);
+    }
+
+    /**
+     * PHONE VERIFICATION METHODS
+     */
+    public function sendPhoneOtp(Request $request)
+    {
+        $user = $request->user();
+        if (!$user->phone) {
+            return response()->json(['status' => 'error', 'message' => 'Update your phone number first.'], 400);
+        }
+
+        $otp = rand(100000, 999999);
+        $user->update(['phone_otp' => $otp]);
+
+        try {
+            $sid = env('TWILIO_SID');
+            $token = env('TWILIO_AUTH_TOKEN');
+            $twilioNumber = env('TWILIO_NUMBER');
+
+            $client = new TwilioClient($sid, $token);
+            $client->messages->create(
+                $user->phone,
+                [
+                    'from' => $twilioNumber,
+                    'body' => "Your verification code is: $otp"
+                ]
+            );
+
+            return response()->json(['status' => 'success', 'message' => 'Code sent via SMS.']);
+        } catch (Exception $e) {
+            return response()->json(['status' => 'error', 'message' => 'SMS failed: ' . $e->getMessage()], 500);
+        }
+    }
+
+    public function verifyPhone(Request $request)
+    {
+        $request->validate(['otp' => 'required|string']);
+        $user = $request->user();
+
+        if ($user->phone_otp === $request->otp) {
+            $user->update([
+                'phone_verified_at' => now(),
+                'phone_otp' => null
+            ]);
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Phone verified successfully.'
+            ]);
+        }
+
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Invalid or expired OTP.'
+        ], 422);
     }
 
     /**
@@ -192,7 +294,6 @@ class AuthController extends Controller
      */
     public function logout(Request $request)
     {
-        // Revoke the token that was used to authenticate the current request
         $request->user()->currentAccessToken()->delete();
 
         return response()->json([
