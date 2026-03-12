@@ -78,7 +78,6 @@ Route::prefix('v1/vendors')->group(function () {
             Route::post('/update-profile', [VendorAuthController::class, 'updateProfile']);
         });
     });
-});
 
 // --- 3. GLOBAL USER ROUTE ---
 // Shared route for any authenticated user to check identity

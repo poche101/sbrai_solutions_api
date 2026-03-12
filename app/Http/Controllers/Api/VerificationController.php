@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Notifications\SendOtpNotification;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class VerificationController extends Controller
@@ -17,8 +17,10 @@ class VerificationController extends Controller
         $user = $request->user();
         $otp = rand(100000, 999999);
 
-        $user->update(['email_otp' => $otp]);
-        'otp_expires_at' => now()->addMinutes(10);
+        $user->update([
+            'email_otp' => $otp,
+            'otp_expires_at' => now()->addMinutes(10),
+        ]);
         $user->notify(new SendOtpNotification($otp));
 
         return response()->json(['message' => 'Email verification code sent.']);
@@ -32,12 +34,14 @@ class VerificationController extends Controller
         if ($user->email_otp === $request->otp) {
             $user->update([
                 'email_verified_at' => now(),
-                'email_otp' => null
+                'email_otp' => null,
             ]);
+
             return response()->json(['message' => 'Email verified successfully.']);
         }
 
         return response()->json(['error' => 'Invalid or expired OTP.'], 422);
+
     }
 
     /**
@@ -47,7 +51,7 @@ class VerificationController extends Controller
     {
         $user = $request->user();
 
-        if (!$user->phone) {
+        if (! $user->phone) {
             return response()->json(['error' => 'No phone number found in profile.'], 400);
         }
 
@@ -68,8 +72,9 @@ class VerificationController extends Controller
         if ($user->phone_otp === $request->otp) {
             $user->update([
                 'phone_verified_at' => now(),
-                'phone_otp' => null
+                'phone_otp' => null,
             ]);
+
             return response()->json(['message' => 'Phone verified successfully.']);
         }
 
