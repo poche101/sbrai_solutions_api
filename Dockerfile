@@ -9,14 +9,13 @@ RUN apk add --no-cache \
     zip \
     unzip \
     gettext \
-    oniguruma-dev
+    libonig-dev
 
 # Install PHP extensions
 RUN docker-php-ext-install \
     bcmath \
     ctype \
     fileinfo \
-    json \
     mbstring \
     mysqli \
     pdo \
