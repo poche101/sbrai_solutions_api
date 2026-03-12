@@ -1,17 +1,3 @@
-# Build stage
-FROM node:20-alpine AS node-builder
-WORKDIR /app
-
-# Copy package files and install dependencies
-COPY package.json package-lock.json* ./
-RUN npm ci
-
-# Copy source files
-COPY . .
-
-# Build assets
-RUN npm run build
-
 # PHP stage
 FROM php:8.2-fpm-alpine
 
@@ -20,22 +6,16 @@ RUN apk add --no-cache \
     curl \
     git \
     mysql-client \
-    freetype-dev \
-    libjpeg-turbo-dev \
-    libpng-dev \
-    libzip-dev \
     zip \
     unzip \
     gettext \
     oniguruma-dev
 
 # Install PHP extensions
-RUN docker-php-ext-configure gd --with-freetype --with-jpeg
 RUN docker-php-ext-install \
     bcmath \
     ctype \
     fileinfo \
-    gd \
     json \
     mbstring \
     mysqli \
@@ -53,9 +33,6 @@ WORKDIR /app
 
 # Copy application code
 COPY --chown=www-data:www-data . .
-
-# Copy built assets from node builder
-COPY --from=node-builder --chown=www-data:www-data /app/public/build ./public/build
 
 # Install PHP dependencies
 RUN composer install --no-dev --no-interaction --optimize-autoloader
