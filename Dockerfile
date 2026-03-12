@@ -1,7 +1,7 @@
 # PHP stage
 FROM php:8.2-fpm-alpine
 
-# Install required PHP extensions and system packages
+# Install system dependencies and PHP extension dependencies
 RUN apk add --no-cache \
     curl \
     git \
@@ -9,10 +9,16 @@ RUN apk add --no-cache \
     zip \
     unzip \
     gettext \
-    libonig-dev
+    oniguruma-dev \
+    libzip-dev \
+    libxml2-dev \
+    freetype-dev \
+    libjpeg-turbo-dev \
+    libpng-dev
 
-# Install PHP extensions
-RUN docker-php-ext-install \
+# Install PHP extensions in a specific order with proper configuration
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install -j$(nproc) \
     bcmath \
     ctype \
     fileinfo \
@@ -22,7 +28,20 @@ RUN docker-php-ext-install \
     pdo_mysql \
     tokenizer \
     xml \
-    zip
+    zip \
+    gd \
+    && docker-php-ext-enable \
+    bcmath \
+    ctype \
+    fileinfo \
+    mbstring \
+    mysqli \
+    pdo \
+    pdo_mysql \
+    tokenizer \
+    xml \
+    zip \
+    gd
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
