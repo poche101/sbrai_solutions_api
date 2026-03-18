@@ -10,7 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
 
-class AuthController extends Controller
+class VendorAuthController extends Controller
 {
     /**
      * Register a new vendor
@@ -70,7 +70,7 @@ class AuthController extends Controller
                 'message' => 'Invalid login credentials'
             ], 401);
         }
-        
+
         // Create new token
         $token = $vendor->createToken('vendor_auth_token')->plainTextToken;
 

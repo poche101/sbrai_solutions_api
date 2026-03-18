@@ -3,9 +3,11 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\Buyers\AuthController;
-use App\Http\Controllers\Api\Vendors\VendorAuthController;
+use App\Http\Controllers\Api\Vendor\VendorAuthController;
 use App\Http\Controllers\Api\Buyers\FavoriteController;
 use App\Http\Controllers\Api\Vendor\NINVerificationController;
+use App\Http\Controllers\Api\Vendor\CategoryController;
+use App\Http\Controllers\Api\Vendor\ProductController;
 
 /*
 |--------------------------------------------------------------------------
@@ -52,20 +54,26 @@ Route::prefix('v1/buyers')->group(function () {
 });
 
 // --- 2. VENDOR ROUTES (v1/vendors) ---
-Route::prefix('v1/vendors')->group(function () {
+Route::prefix('v1/vendor')->group(function () {
 
     // Public Vendor Auth
     Route::post('/register', [VendorAuthController::class, 'register']);
     Route::post('/login', [VendorAuthController::class, 'login']);
 
 
-        
+
     Route::prefix('nin')->group(function () {
         Route::post('/verify', [NINVerificationController::class, 'verify']);
         Route::get('/{nin}/status', [NINVerificationController::class, 'checkStatus']);
         Route::get('/{nin}/details', [NINVerificationController::class, 'getVerificationDetails']);
         Route::get('/{nin}/history', [NINVerificationController::class, 'getHistory']);
     });
+
+    // Category API
+    Route::apiResource('categories', CategoryController::class);
+
+    // Products API
+    Route::apiResource('products', ProductController::class);
 });
 
     // Protected Vendor Routes
