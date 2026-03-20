@@ -6,62 +6,148 @@ use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Intervention\Image\Drivers\Gd\Driver;
+use Intervention\Image\ImageManager;
 
 class ProductController extends Controller
 {
+    protected $imageManager;
+
+    public function __construct()
+    {
+        $this->imageManager = new ImageManager(new Driver);
+    }
+
+    /**
+     * Apply watermark to an image
+     */
+    private function applyWatermark($imagePath)
+    {
+        try {
+            $fullPath = Storage::disk('public')->path($imagePath);
+
+            $img = $this->imageManager->read($fullPath);
+
+            $watermarkPath = public_path('images/watermark.png');
+
+            if (file_exists($watermarkPath)) {
+                $watermark = $this->imageManager->read($watermarkPath);
+
+                $img->place($watermark, 'bottom-right', 10, 10);
+
+                $img->save($fullPath);
+            }
+
+            return true;
+        } catch (\Exception $e) {
+            Log::error('Watermark Error: '.$e->getMessage());
+
+            return false;
+        }
+    }
+
+    /**
+     * Process multiple images with watermark
+     */
+    private function processImagesWithWatermark($photos)
+    {
+        $processedPhotos = [];
+
+        foreach ($photos as $photo) {
+            if (is_string($photo) && strpos($photo, 'data:image') === 0) {
+                $imageData = base64_decode(
+                    preg_replace('#^data:image/\w+;base64,#i', '', $photo)
+                );
+
+                $fileName = 'products/'.uniqid().'.jpg';
+
+                Storage::disk('public')->put($fileName, $imageData);
+
+                $this->applyWatermark($fileName);
+
+                $processedPhotos[] = $fileName;
+
+            } elseif ($photo instanceof UploadedFile) {
+                // Handle uploaded file
+                $fileName = $photo->store('products', 'public');
+
+                $this->applyWatermark($fileName);
+
+                $processedPhotos[] = $fileName;
+
+            } else {
+                $processedPhotos[] = $photo;
+            }
+        }
+
+        return $processedPhotos;
+    }
+
     public function store(Request $request)
     {
-        // 1. Validation - Adjusted to accept strings/URLs for your JSON preference
         $request->validate([
             'category_id' => 'required|exists:categories,id',
-            'title'       => 'required|string|max:255',
+            'title' => 'required|string|max:255',
             'description' => 'required|string',
-            'price'       => 'required|numeric',
-            'price_unit'  => 'required|string',
-            'location'    => 'required|string',
-            'photos'      => 'nullable|array|max:5',
-            'photos.*'    => 'string', // Expecting path strings or URLs from JSON
+            'price' => 'required|numeric',
+            'price_unit' => 'required|string',
+            'location' => 'required|string',
+            'photos' => 'nullable|array|max:5',
+            'photos.*' => 'required_with:photos|file|image|mimes:jpeg,png,jpg,gif|max:5120',
         ]);
 
         try {
-            // 2. Identify Vendor (Fallback to first user if not logged in for testing)
             $vendorId = auth()->id() ?? User::first()?->id;
 
-            if (!$vendorId) {
+            if (! $vendorId) {
                 return response()->json([
                     'status' => false,
-                    'message' => 'No vendor found. Please register a user first.'
+                    'message' => 'No vendor found. Please register a user first.',
                 ], 422);
             }
 
-            // 3. Create Product
+            $processedPhotos = [];
+
+            if ($request->has('photos') && is_array($request->photos)) {
+                $processedPhotos = $this->processImagesWithWatermark($request->photos);
+            }
+
             $product = Product::create([
-                'vendor_id'   => $vendorId,
+                'vendor_id' => $vendorId,
                 'category_id' => $request->category_id,
-                'title'       => $request->title,
+                'title' => $request->title,
                 'description' => $request->description,
-                'price'       => $request->price,
-                'price_unit'  => $request->price_unit,
-                'location'    => $request->location,
-                'photos'      => $request->photos, // Directly saving the array of strings
+                'price' => $request->price,
+                'price_unit' => $request->price_unit,
+                'location' => $request->location,
+                'photos' => $processedPhotos,
             ]);
 
             return response()->json([
                 'status' => true,
-                'message' => 'Product created successfully',
-                'data' => $product
+                'message' => 'Product created successfully with watermarked images',
+                'data' => $product,
             ], 201);
 
         } catch (\Exception $e) {
-            // This logs the real error to storage/logs/laravel.log
-            Log::error("Product Store Error: " . $e->getMessage());
+            Log::error('Product Store Error: '.$e->getMessage());
+
+            // rollback uploaded images
+            if (! empty($processedPhotos)) {
+                foreach ($processedPhotos as $photo) {
+                    if (Storage::disk('public')->exists($photo)) {
+                        Storage::disk('public')->delete($photo);
+                    }
+                }
+            }
 
             return response()->json([
                 'status' => false,
                 'message' => 'Server Error',
-                'error' => $e->getMessage() // This will show you exactly why it failed in Postman
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -70,18 +156,55 @@ class ProductController extends Controller
     {
         $product = Product::findOrFail($id);
 
-        $product->update($request->only([
-            'title', 'description', 'price', 'price_unit', 'location', 'category_id', 'photos'
-        ]));
+        try {
+            $updateData = $request->only([
+                'title',
+                'description',
+                'price',
+                'price_unit',
+                'location',
+                'category_id',
+            ]);
 
-        return response()->json(['status' => true, 'message' => 'Product updated', 'data' => $product]);
+            if ($request->has('photos') && is_array($request->photos)) {
+
+                // delete old photos
+                if ($product->photos && is_array($product->photos)) {
+                    foreach ($product->photos as $oldPhoto) {
+                        if (Storage::disk('public')->exists($oldPhoto)) {
+                            Storage::disk('public')->delete($oldPhoto);
+                        }
+                    }
+                }
+
+                $processedPhotos = $this->processImagesWithWatermark($request->photos);
+
+                $updateData['photos'] = $processedPhotos;
+            }
+
+            $product->update($updateData);
+
+            return response()->json([
+                'status' => true,
+                'message' => 'Product updated with watermarked images',
+                'data' => $product->fresh(),
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Product Update Error: '.$e->getMessage());
+
+            return response()->json([
+                'status' => false,
+                'message' => 'Update failed',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
 
     public function destroy($id)
     {
         $product = Product::findOrFail($id);
 
-        // Delete images from storage if they are local paths
         if ($product->photos && is_array($product->photos)) {
             foreach ($product->photos as $path) {
                 if (Storage::disk('public')->exists($path)) {
@@ -91,6 +214,10 @@ class ProductController extends Controller
         }
 
         $product->delete();
-        return response()->json(['status' => true, 'message' => 'Product deleted']);
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Product deleted',
+        ]);
     }
 }
