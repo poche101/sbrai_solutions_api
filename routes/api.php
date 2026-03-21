@@ -76,7 +76,7 @@ Route::prefix('v1/vendor')->group(function () {
     Route::apiResource('products', ProductController::class);
     //Service Category
     Route::apiResource('service-categories', ServiceCategoryController::class);
-    Route::post('services', [ServiceController::class, 'store']);
+    Route::apiResource('services', ServiceController::class);
 });
 
     // Protected Vendor Routes

@@ -10,12 +10,14 @@ use Illuminate\Support\Facades\Storage;
 class Service extends Model
 {
     protected $fillable = [
-        'service_category_id',
-        'name',
-        'slug',
-        'description',
-        'price'
-    ];
+    'service_category_id',
+    'title',
+    'slug',
+    'description',
+    'price',
+    'price_unit',
+    'location'
+];
 
     /**
      * Automatically load photos whenever you fetch a service.

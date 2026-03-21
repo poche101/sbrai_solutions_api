@@ -22,12 +22,12 @@ class ServiceCategoryController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name' => 'required|string|unique:service_categories,name|max:255',
+            'title' => 'required|string|unique:service_categories,name|max:255',
         ]);
 
         $category = ServiceCategory::create([
-            'name' => $request->name,
-            'slug' => Str::slug($request->name),
+            'title' => $request->title,
+            'slug' => Str::slug($request->title),
             'description' => $request->description,
         ]);
 
