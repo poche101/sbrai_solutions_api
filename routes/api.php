@@ -10,6 +10,9 @@ use App\Http\Controllers\Api\Vendor\CategoryController;
 use App\Http\Controllers\Api\Vendor\ProductController;
 use App\Http\Controllers\Api\Vendor\ServiceCategoryController;
 use App\Http\Controllers\Api\Vendor\ServiceController;
+use App\Http\Controllers\Api\Vendor\PropertyCategoryController;
+use App\Http\Controllers\Api\Vendor\RentPropertyController;
+use App\Http\Controllers\Api\Vendor\SalePropertyController;
 
 /*
 |--------------------------------------------------------------------------
@@ -77,6 +80,13 @@ Route::prefix('v1/vendor')->group(function () {
     //Service Category
     Route::apiResource('service-categories', ServiceCategoryController::class);
     Route::apiResource('services', ServiceController::class);
+
+    // Property Categories
+    Route::apiResource('categories/property', PropertyCategoryController::class);
+    // Vendor Rent Property Routes
+    Route::apiResource('rent-properties', RentPropertyController::class);
+    // Vendor Proferty for sale
+    Route::apiResource('sale-properties', SalePropertyController::class);
 });
 
     // Protected Vendor Routes
