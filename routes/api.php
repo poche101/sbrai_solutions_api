@@ -8,6 +8,8 @@ use App\Http\Controllers\Api\Buyers\FavoriteController;
 use App\Http\Controllers\Api\Vendor\NINVerificationController;
 use App\Http\Controllers\Api\Vendor\CategoryController;
 use App\Http\Controllers\Api\Vendor\ProductController;
+use App\Http\Controllers\Api\Vendor\ServiceCategoryController;
+use App\Http\Controllers\Api\Vendor\ServiceController;
 
 /*
 |--------------------------------------------------------------------------
@@ -61,7 +63,6 @@ Route::prefix('v1/vendor')->group(function () {
     Route::post('/login', [VendorAuthController::class, 'login']);
 
 
-
     Route::prefix('nin')->group(function () {
         Route::post('/verify', [NINVerificationController::class, 'verify']);
         Route::get('/{nin}/status', [NINVerificationController::class, 'checkStatus']);
@@ -71,9 +72,11 @@ Route::prefix('v1/vendor')->group(function () {
 
     // Category API
     Route::apiResource('categories', CategoryController::class);
-
     // Products API
     Route::apiResource('products', ProductController::class);
+    //Service Category
+    Route::apiResource('service-categories', ServiceCategoryController::class);
+    Route::post('services', [ServiceController::class, 'store']);
 });
 
     // Protected Vendor Routes
