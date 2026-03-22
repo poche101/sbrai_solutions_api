@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasOne; // Added for profile relationship
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -26,7 +27,8 @@ class User extends Authenticatable
         'provider_name',
         'email_otp',        // Added for verification
         'phone_otp',        // Added for verification
-        'phone_verified_at' // Added for verification
+        'phone_verified_at', // Added for verification
+        'otp_expires_at'    // Ensure this is fillable if you use it
     ];
 
     /**
@@ -59,6 +61,14 @@ class User extends Authenticatable
     }
 
     /**
+     * Get the profile associated with the user.
+     */
+    public function profile(): HasOne
+    {
+        return $this->hasOne(UserProfile::class, 'user_id');
+    }
+
+    /**
      * Helper to check if user has completed both verifications.
      */
     public function isFullyVerified(): bool
@@ -67,7 +77,7 @@ class User extends Authenticatable
     }
 
     public function favorites()
-{
-    return $this->belongsToMany(Product::class, 'favorites');
-}
+    {
+        return $this->belongsToMany(Product::class, 'favorites');
+    }
 }

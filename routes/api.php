@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\Vendor\ServiceController;
 use App\Http\Controllers\Api\Vendor\PropertyCategoryController;
 use App\Http\Controllers\Api\Vendor\RentPropertyController;
 use App\Http\Controllers\Api\Vendor\SalePropertyController;
+use App\Http\Controllers\Api\Buyers\ProfileController;
 
 /*
 |--------------------------------------------------------------------------
@@ -40,7 +41,8 @@ Route::prefix('v1/buyers')->group(function () {
         // Favourites - Cleaned up redundant middleware
         Route::get('/favorites', [FavoriteController::class, 'index']);
         Route::post('/favorites/toggle', [FavoriteController::class, 'toggle']);
-
+        // Profile
+        Route::apiResource('profile', ProfileController::class);
         // OTP Confirmation
         Route::post('/verify/email/confirm', [AuthController::class, 'verifyEmail']);
         Route::post('/verify/phone/confirm', [AuthController::class, 'verifyPhone']);
@@ -53,7 +55,6 @@ Route::prefix('v1/buyers')->group(function () {
             Route::get('/user', function (Request $request) {
                 return $request->user();
             });
-            Route::post('/update-profile', [AuthController::class, 'updateProfile']);
         });
     });
 });
