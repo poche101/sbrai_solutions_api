@@ -27,7 +27,9 @@ Route::prefix('v1/buyers')->group(function () {
     // Public Auth Routes
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
-    Route::post('/social-auth', [AuthController::class, 'socialSignup']);
+
+   // This creates the URL: /api/v1/buyers/social-signup
+    Route::post('social-signup', [AuthController::class, 'socialSignup']);
 
     // Protected Routes (Require Sanctum Token)
     Route::middleware('auth:sanctum')->group(function () {
