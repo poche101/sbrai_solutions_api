@@ -1,19 +1,19 @@
 <?php
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\Buyers\AuthController;
-use App\Http\Controllers\Api\Vendor\VendorAuthController;
 use App\Http\Controllers\Api\Buyers\FavoriteController;
-use App\Http\Controllers\Api\Vendor\NINVerificationController;
+use App\Http\Controllers\Api\Buyers\ProfileController;
 use App\Http\Controllers\Api\Vendor\CategoryController;
+use App\Http\Controllers\Api\Vendor\NINVerificationController;
 use App\Http\Controllers\Api\Vendor\ProductController;
-use App\Http\Controllers\Api\Vendor\ServiceCategoryController;
-use App\Http\Controllers\Api\Vendor\ServiceController;
 use App\Http\Controllers\Api\Vendor\PropertyCategoryController;
 use App\Http\Controllers\Api\Vendor\RentPropertyController;
 use App\Http\Controllers\Api\Vendor\SalePropertyController;
-use App\Http\Controllers\Api\Buyers\ProfileController;
+use App\Http\Controllers\Api\Vendor\ServiceCategoryController;
+use App\Http\Controllers\Api\Vendor\ServiceController;
+use App\Http\Controllers\Api\Vendor\VendorAuthController;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
@@ -28,7 +28,7 @@ Route::prefix('v1/buyers')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
 
-   // This creates the URL: /api/v1/buyers/social-signup
+    // This creates the URL: /api/v1/buyers/social-signup
     Route::post('social-signup', [AuthController::class, 'socialSignup']);
 
     // Protected Routes (Require Sanctum Token)
@@ -68,7 +68,6 @@ Route::prefix('v1/vendor')->group(function () {
     Route::post('/register', [VendorAuthController::class, 'register']);
     Route::post('/login', [VendorAuthController::class, 'login']);
 
-
     Route::prefix('nin')->group(function () {
         Route::post('/verify', [NINVerificationController::class, 'verify']);
         Route::get('/{nin}/status', [NINVerificationController::class, 'checkStatus']);
@@ -80,7 +79,7 @@ Route::prefix('v1/vendor')->group(function () {
     Route::apiResource('categories', CategoryController::class);
     // Products API
     Route::apiResource('products', ProductController::class);
-    //Service Category
+    // Service Category
     Route::apiResource('service-categories', ServiceCategoryController::class);
     Route::apiResource('services', ServiceController::class);
 
@@ -90,7 +89,6 @@ Route::prefix('v1/vendor')->group(function () {
     Route::apiResource('rent-properties', RentPropertyController::class);
     // Vendor Proferty for sale
     Route::apiResource('sale-properties', SalePropertyController::class);
-});
 
     // Protected Vendor Routes
     Route::middleware('auth:sanctum')->group(function () {
@@ -102,6 +100,7 @@ Route::prefix('v1/vendor')->group(function () {
             Route::post('/update-profile', [VendorAuthController::class, 'updateProfile']);
         });
     });
+});
 
 // --- 3. GLOBAL USER ROUTE ---
 // Shared route for any authenticated user to check identity
