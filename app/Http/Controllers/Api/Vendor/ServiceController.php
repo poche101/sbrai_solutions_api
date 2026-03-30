@@ -9,9 +9,12 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
+use App\Traits\Favoritable;
 
 class ServiceController extends Controller
 {
+
+use Favoritable;
     /**
      * Create a new service
      */

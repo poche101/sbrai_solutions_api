@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\Buyers\AuthController;
 use App\Http\Controllers\Api\Buyers\FavoriteController;
 use App\Http\Controllers\Api\Buyers\ProfileController;
+use App\Http\Controllers\Api\Buyers\NotificationController; // Added this
 use App\Http\Controllers\Api\Vendor\CategoryController;
 use App\Http\Controllers\Api\Vendor\NINVerificationController;
 use App\Http\Controllers\Api\Vendor\ProductController;
@@ -34,17 +35,22 @@ Route::prefix('v1/buyers')->group(function () {
     // Protected Routes (Require Sanctum Token)
     Route::middleware('auth:sanctum')->group(function () {
 
+        // --- Notification Settings (Buyer) ---
+        Route::post('/notifications/settings', [NotificationController::class, 'updateSettings']);
+
         // Verification & OTP (Throttled to 3 requests per minute)
         Route::middleware('throttle:3,1')->group(function () {
             Route::post('/verify/email/send', [AuthController::class, 'sendEmailOtp']);
             Route::post('/verify/phone/send', [AuthController::class, 'sendPhoneOtp']);
         });
 
-        // Favourites - Cleaned up redundant middleware
+        // Favourites
         Route::get('/favorites', [FavoriteController::class, 'index']);
         Route::post('/favorites/toggle', [FavoriteController::class, 'toggle']);
+
         // Profile
         Route::apiResource('profile', ProfileController::class);
+
         // OTP Confirmation
         Route::post('/verify/email/confirm', [AuthController::class, 'verifyEmail']);
         Route::post('/verify/phone/confirm', [AuthController::class, 'verifyPhone']);
@@ -81,17 +87,22 @@ Route::prefix('v1/vendor')->group(function () {
     Route::apiResource('products', ProductController::class);
     // Service Category
     Route::apiResource('service-categories', ServiceCategoryController::class);
+    // Services API
     Route::apiResource('services', ServiceController::class);
 
     // Property Categories
     Route::apiResource('categories/property', PropertyCategoryController::class);
     // Vendor Rent Property Routes
     Route::apiResource('rent-properties', RentPropertyController::class);
-    // Vendor Proferty for sale
+    // Vendor Property for sale
     Route::apiResource('sale-properties', SalePropertyController::class);
 
     // Protected Vendor Routes
     Route::middleware('auth:sanctum')->group(function () {
+
+        // --- Notification Settings (Vendor) ---
+        Route::post('/notifications/settings', [NotificationController::class, 'updateSettings']);
+
         Route::post('/logout', [VendorAuthController::class, 'logout']);
 
         // Verified Vendor Access
@@ -103,7 +114,6 @@ Route::prefix('v1/vendor')->group(function () {
 });
 
 // --- 3. GLOBAL USER ROUTE ---
-// Shared route for any authenticated user to check identity
 Route::middleware(['auth:sanctum', 'verified_api'])->get('/user', function (Request $request) {
     return $request->user();
 });
