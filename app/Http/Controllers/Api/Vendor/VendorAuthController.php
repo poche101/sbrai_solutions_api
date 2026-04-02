@@ -5,10 +5,9 @@ namespace App\Http\Controllers\Api\Vendor;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\Vendor\RegisterRequest;
 use App\Models\Vendor;
-use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Auth;
 
 class VendorAuthController extends Controller
 {
@@ -37,15 +36,15 @@ class VendorAuthController extends Controller
                 'data' => [
                     'vendor' => $vendor,
                     'token' => $token,
-                    'token_type' => 'Bearer'
-                ]
+                    'token_type' => 'Bearer',
+                ],
             ], 201);
 
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Registration failed',
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -64,10 +63,10 @@ class VendorAuthController extends Controller
         $vendor = Vendor::where('email', $request->email)->first();
 
         // Check if vendor exists and password is correct
-        if (!$vendor || !Hash::check($request->password, $vendor->password)) {
+        if (! $vendor || ! Hash::check($request->password, $vendor->password)) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Invalid login credentials'
+                'message' => 'Invalid login credentials',
             ], 401);
         }
 
@@ -80,8 +79,8 @@ class VendorAuthController extends Controller
             'data' => [
                 'vendor' => $vendor,
                 'token' => $token,
-                'token_type' => 'Bearer'
-            ]
+                'token_type' => 'Bearer',
+            ],
         ]);
     }
 
@@ -90,12 +89,36 @@ class VendorAuthController extends Controller
      */
     public function logout(Request $request): JsonResponse
     {
-        $request->user()->currentAccessToken()->delete();
+        try {
+            // Check if user is authenticated
+            if (! $request->user()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'User not authenticated',
+                ], 401);
+            }
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Logged out successfully'
-        ]);
+            // Get the current access token
+            $token = $request->user()->currentAccessToken();
+
+            if ($token) {
+                $token->delete();
+            } else {
+                // Fallback: delete all tokens for this user
+                $request->user()->tokens()->delete();
+            }
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Logged out successfully',
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Logout failed: '.$e->getMessage(),
+            ], 500);
+        }
     }
 
     /**
@@ -105,7 +128,7 @@ class VendorAuthController extends Controller
     {
         return response()->json([
             'status' => 'success',
-            'data' => $request->user()
+            'data' => $request->user(),
         ]);
     }
 
@@ -126,20 +149,20 @@ class VendorAuthController extends Controller
             $vendor->update($request->only([
                 'full_name',
                 'phone_number',
-                'business_address'
+                'business_address',
             ]));
 
             return response()->json([
                 'status' => 'success',
                 'message' => 'Profile updated successfully',
-                'data' => $vendor
+                'data' => $vendor,
             ]);
 
         } catch (\Exception $e) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Profile update failed',
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ], 500);
         }
     }

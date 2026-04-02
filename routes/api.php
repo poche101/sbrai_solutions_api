@@ -91,7 +91,7 @@ Route::prefix('v1/vendor')->group(function () {
     Route::apiResource('sale-properties', SalePropertyController::class);
 
     // Protected Vendor Routes
-    Route::middleware('auth:sanctum')->group(function () {
+    Route::middleware('auth:vendor')->group(function () {
         Route::post('/logout', [VendorAuthController::class, 'logout']);
 
         // Verified Vendor Access

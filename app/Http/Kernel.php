@@ -2,7 +2,17 @@
 
 namespace App\Http;
 
+use App\Http\Middleware\Authenticate;
+use App\Http\Middleware\AuthenticateVendor;
+use App\Http\Middleware\EnsureUserIsVerified;
+use App\Http\Middleware\RedirectIfAuthenticated;
+use Illuminate\Auth\Middleware\AuthenticateWithBasicAuth;
+use Illuminate\Auth\Middleware\Authorize;
+use Illuminate\Auth\Middleware\EnsureEmailIsVerified;
 use Illuminate\Foundation\Http\Kernel as HttpKernel;
+use Illuminate\Http\Middleware\SetCacheHeaders;
+use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Routing\Middleware\ValidateSignature;
 
 class Kernel extends HttpKernel
 {
@@ -16,16 +26,17 @@ class Kernel extends HttpKernel
      * @var array<string, class-string|string>
      */
     protected $middlewareAliases = [
-        'auth' => \App\Http\Middleware\Authenticate::class,
-        'auth.basic' => \Illuminate\Auth\Middleware\AuthenticateWithBasicAuth::class,
-        'cache.headers' => \Illuminate\Http\Middleware\SetCacheHeaders::class,
-        'can' => \Illuminate\Auth\Middleware\Authorize::class,
-        'guest' => \App\Http\Middleware\RedirectIfAuthenticated::class,
-        'signed' => \Illuminate\Routing\Middleware\ValidateSignature::class,
-        'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
-        'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
+        'auth' => Authenticate::class,
+        'auth.basic' => AuthenticateWithBasicAuth::class,
+        'cache.headers' => SetCacheHeaders::class,
+        'can' => Authorize::class,
+        'guest' => RedirectIfAuthenticated::class,
+        'signed' => ValidateSignature::class,
+        'throttle' => ThrottleRequests::class,
+        'verified' => EnsureEmailIsVerified::class,
 
         // ADD YOUR CUSTOM MIDDLEWARE HERE
-        'verified_api' => \App\Http\Middleware\EnsureUserIsVerified::class,
+        'verified_api' => EnsureUserIsVerified::class,
+        'auth.vendor' => AuthenticateVendor::class,
     ];
 }
