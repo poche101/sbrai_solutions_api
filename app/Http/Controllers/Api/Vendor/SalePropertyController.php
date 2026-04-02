@@ -9,9 +9,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
+use App\Traits\Favoritable;
 
 class SalePropertyController extends Controller
 {
+    use Favoritable;
     /**
      * List all sale properties with images (Paginated)
      */

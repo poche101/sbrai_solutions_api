@@ -15,17 +15,26 @@ return new class extends Migration
             $table->id();
             $table->string('name');
             $table->string('email')->unique();
-            $table->string('phone')->nullable(); // Added for phone
-            $table->text('address')->nullable(); // Added for address (optional)
-            $table->timestamp('email_verified_at')->nullable();
+            $table->string('phone')->nullable();
+            $table->text('address')->nullable();
 
-            // Password is nullable to allow Social Login users
-            // who don't set a password immediately.
-            $table->string('password')->nullable();
+            // Verification Fields
+            $table->timestamp('email_verified_at')->nullable();
+            $table->timestamp('phone_verified_at')->nullable(); // Added
+            $table->string('email_otp')->nullable();            // Added
+            $table->string('phone_otp')->nullable();            // Added
+            $table->timestamp('otp_expires_at')->nullable();    // Added
+
+            // Authentication
+            $table->string('password')->nullable(); // Nullable for Social Login
 
             // Social Login Fields
             $table->string('provider_id')->nullable();   // e.g., 123456789
-            $table->string('provider_name')->nullable(); // e.g., 'google' or 'facebook'
+            $table->string('provider_name')->nullable(); // e.g., 'google'
+
+            // Notifications & Messaging
+            $table->text('fcm_token')->nullable();       // Added for Firebase
+            $table->json('notification_preferences')->nullable(); // Added
 
             $table->rememberToken();
             $table->timestamps();

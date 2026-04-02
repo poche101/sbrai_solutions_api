@@ -8,6 +8,7 @@
     "require": {
         "php": "^8.2",
         "intervention/image": "*",
+        "kreait/firebase-php": "^5.26",
         "laravel/framework": "^12.0",
         "laravel/sanctum": "^4.0",
         "laravel/socialite": "^5.24",

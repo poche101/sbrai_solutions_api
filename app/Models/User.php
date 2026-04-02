@@ -3,7 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\HasOne; // Added for profile relationship
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -25,10 +26,12 @@ class User extends Authenticatable
         'password',
         'provider_id',
         'provider_name',
-        'email_otp',        // Added for verification
-        'phone_otp',        // Added for verification
-        'phone_verified_at', // Added for verification
-        'otp_expires_at'    // Ensure this is fillable if you use it
+        'email_otp',
+        'phone_otp',
+        'phone_verified_at',
+        'otp_expires_at',
+        'fcm_token',                // Added for Notifications
+        'notification_preferences', // Added for Notifications
     ];
 
     /**
@@ -54,9 +57,10 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
-            'phone_verified_at' => 'datetime', // Added cast
-            'password' => 'hashed',
+            'phone_verified_at' => 'datetime',
+            'password'          => 'hashed',
             'otp_expires_at'    => 'datetime',
+            'notification_preferences' => 'array', // Added array cast
         ];
     }
 
@@ -69,15 +73,19 @@ class User extends Authenticatable
     }
 
     /**
+     * Polymorphic Favorites Relationship.
+     * This links the user to all their favorites (Products, Services, Properties).
+     */
+    public function favorites(): HasMany
+    {
+        return $this->hasMany(Favorite::class);
+    }
+
+    /**
      * Helper to check if user has completed both verifications.
      */
     public function isFullyVerified(): bool
     {
         return !is_null($this->email_verified_at) && !is_null($this->phone_verified_at);
-    }
-
-    public function favorites()
-    {
-        return $this->belongsToMany(Product::class, 'favorites');
     }
 }

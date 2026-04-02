@@ -7,10 +7,12 @@ use Illuminate\Http\Request;
 use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rules\Password;
 use Laravel\Socialite\Facades\Socialite;
 use App\Notifications\SendOtpNotification;
 use Exception;
 use Twilio\Rest\Client as TwilioClient;
+use Illuminate\Database\QueryException;
 
 class AuthController extends Controller
 {
@@ -19,40 +21,57 @@ class AuthController extends Controller
      */
     public function register(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'name'     => 'required|string|max:255',
-            'email'    => 'required|string|email|max:255|unique:users',
-            'phone'    => 'required|string|max:20',
-            'address'  => 'nullable|string',
-            'password' => 'required|string|min:8|confirmed',
-        ]);
+        try {
+            $validator = Validator::make($request->all(), [
+                'name'     => 'required|string|max:255',
+                'email'    => 'required|string|email|max:255|unique:users',
+                'phone'    => 'required|string|max:20',
+                'address'  => 'nullable|string',
+                'password' => [
+                    'required',
+                    'confirmed',
+                    Password::min(8)
+                        ->letters()
+                        ->mixedCase()
+                        ->numbers()
+                        ->symbols()
+                        ->uncompromised(), // Security: Checks if password was leaked in data breaches
+                ],
+            ]);
 
-        if ($validator->fails()) {
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $user = User::create([
+                'name'     => $request->name,
+                'email'    => $request->email,
+                'phone'    => $request->phone,
+                'address'  => $request->address,
+                'password' => Hash::make($request->password),
+            ]);
+
+            $token = $user->createToken('auth_token')->plainTextToken;
+
             return response()->json([
-                'status' => 'error',
-                'errors' => $validator->errors()
-            ], 422);
+                'status' => 'success',
+                'message' => 'User registered successfully',
+                'data' => [
+                    'user' => $user,
+                    'access_token' => $token,
+                    'token_type' => 'Bearer',
+                ]
+            ], 201);
+
+        } catch (QueryException $e) {
+            return response()->json(['status' => 'error', 'message' => 'Database error: Could not complete registration.'], 500);
+        } catch (Exception $e) {
+            return response()->json(['status' => 'error', 'message' => 'An unexpected error occurred during registration.'], 500);
         }
-
-        $user = User::create([
-            'name'     => $request->name,
-            'email'    => $request->email,
-            'phone'    => $request->phone,
-            'address'  => $request->address,
-            'password' => Hash::make($request->password),
-        ]);
-
-        $token = $user->createToken('auth_token')->plainTextToken;
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'User registered successfully',
-            'data' => [
-                'user' => $user,
-                'access_token' => $token,
-                'token_type' => 'Bearer',
-            ]
-        ], 201);
     }
 
     /**
@@ -60,61 +79,65 @@ class AuthController extends Controller
      */
     public function login(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'email'    => 'required|string|email',
-            'password' => 'required|string',
-        ]);
+        try {
+            $validator = Validator::make($request->all(), [
+                'email'    => 'required|string|email',
+                'password' => 'required|string',
+            ]);
 
-        if ($validator->fails()) {
+            if ($validator->fails()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $user = User::where('email', $request->email)->first();
+
+            // Specific check for credentials
+            if (!$user || !Hash::check($request->password, $user->password)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Incorrect email or password.'
+                ], 401);
+            }
+
+            $token = $user->createToken('auth_token')->plainTextToken;
+
             return response()->json([
-                'status' => 'error',
-                'errors' => $validator->errors()
-            ], 422);
+                'status' => 'success',
+                'message' => 'Login successful',
+                'data' => [
+                    'user' => $user,
+                    'access_token' => $token,
+                    'token_type' => 'Bearer',
+                ]
+            ]);
+
+        } catch (Exception $e) {
+            return response()->json(['status' => 'error', 'message' => 'Login service temporarily unavailable.'], 500);
         }
-
-        $user = User::where('email', $request->email)->first();
-
-        if (!$user || !Hash::check($request->password, $user->password)) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Invalid credentials provided.'
-            ], 401);
-        }
-
-        $token = $user->createToken('auth_token')->plainTextToken;
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Login successful',
-            'data' => [
-                'user' => $user,
-                'access_token' => $token,
-                'token_type' => 'Bearer',
-            ]
-        ]);
     }
 
     /**
-     * Handle Social Signup/Login (Google & Facebook)
+     * Handle Social Signup/Login
      */
     public function socialSignup(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'provider'     => 'required|string|in:google,facebook',
-            'access_token' => 'required|string',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => 'error',
-                'errors' => $validator->errors()
-            ], 422);
-        }
-
-        $provider = $request->provider;
-        $token = $request->access_token;
-
         try {
+            $validator = Validator::make($request->all(), [
+                'provider'     => 'required|string|in:google,facebook',
+                'access_token' => 'required|string',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
+            }
+
+            $provider = $request->provider;
+            $token = $request->access_token;
+
             if (app()->environment('local')) {
                 config(["services.$provider.guzzle.verify" => false]);
             }
@@ -122,10 +145,7 @@ class AuthController extends Controller
             $socialUser = Socialite::driver($provider)->stateless()->userFromToken($token);
 
             if (!$socialUser->getEmail()) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => "Could not retrieve email from $provider."
-                ], 422);
+                return response()->json(['status' => 'error', 'message' => "Email not provided by $provider."], 422);
             }
 
             $user = User::updateOrCreate(
@@ -134,7 +154,7 @@ class AuthController extends Controller
                     'name'              => $socialUser->getName(),
                     'provider_id'       => $socialUser->getId(),
                     'provider_name'     => $provider,
-                    'email_verified_at' => now(), // Social users are pre-verified
+                    'email_verified_at' => now(),
                 ]
             );
 
@@ -150,10 +170,7 @@ class AuthController extends Controller
             ]);
 
         } catch (Exception $e) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Authentication failed: ' . $e->getMessage()
-            ], 401);
+            return response()->json(['status' => 'error', 'message' => 'Social authentication failed: ' . $e->getMessage()], 401);
         }
     }
 
@@ -162,45 +179,47 @@ class AuthController extends Controller
      */
     public function sendEmailOtp(Request $request)
     {
-        $user = $request->user();
-        $otp = rand(100000, 999999);
+        try {
+            $user = $request->user();
+            $otp = rand(100000, 999999);
 
-        // FIXED: Combined the OTP and Expiry into the update array correctly
-        $user->update([
-            'email_otp' => $otp,
-            'otp_expires_at' => now()->addMinutes(10)
-        ]);
+            $user->update([
+                'email_otp' => $otp,
+                'otp_expires_at' => now()->addMinutes(15)
+            ]);
 
-        $user->notify(new SendOtpNotification($otp));
+            $user->notify(new SendOtpNotification($otp));
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Verification code sent to your email.'
-        ]);
+            return response()->json(['status' => 'success', 'message' => 'Verification code sent to your email.']);
+        } catch (Exception $e) {
+            return response()->json(['status' => 'error', 'message' => 'Failed to send OTP. Please try again.'], 500);
+        }
     }
 
     public function verifyEmail(Request $request)
     {
-        $request->validate(['otp' => 'required|string']);
-        $user = $request->user();
+        try {
+            $request->validate(['otp' => 'required|string']);
+            $user = $request->user();
 
-        // Optional: Check if OTP is expired if you use the otp_expires_at column
-        if ($user->email_otp === $request->otp) {
-            $user->update([
-                'email_verified_at' => now(),
-                'email_otp' => null,
-                'otp_expires_at' => null
-            ]);
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Email verified successfully.'
-            ]);
+            if (!$user->email_otp || !$user->otp_expires_at || $user->otp_expires_at < now()) {
+                return response()->json(['status' => 'error', 'message' => 'OTP has expired or does not exist.'], 422);
+            }
+
+            if ($user->email_otp === $request->otp) {
+                $user->update([
+                    'email_verified_at' => now(),
+                    'email_otp' => null,
+                    'otp_expires_at' => null
+                ]);
+                return response()->json(['status' => 'success', 'message' => 'Email verified successfully.']);
+            }
+
+            return response()->json(['status' => 'error', 'message' => 'Invalid OTP code.'], 422);
+
+        } catch (Exception $e) {
+            return response()->json(['status' => 'error', 'message' => 'Verification process failed.'], 500);
         }
-
-        return response()->json([
-            'status' => 'error',
-            'message' => 'Invalid or expired OTP.'
-        ], 422);
     }
 
     /**
@@ -208,54 +227,53 @@ class AuthController extends Controller
      */
     public function sendPhoneOtp(Request $request)
     {
-        $user = $request->user();
-        if (!$user->phone) {
-            return response()->json(['status' => 'error', 'message' => 'Update your phone number first.'], 400);
-        }
-
-        $otp = rand(100000, 999999);
-        $user->update(['phone_otp' => $otp]);
-
         try {
+            $user = $request->user();
+            if (!$user->phone) {
+                return response()->json(['status' => 'error', 'message' => 'Please update your phone number in your profile first.'], 400);
+            }
+
+            $otp = rand(100000, 999999);
+            $user->update(['phone_otp' => $otp]);
+
             $sid = env('TWILIO_SID');
             $token = env('TWILIO_AUTH_TOKEN');
             $twilioNumber = env('TWILIO_NUMBER');
 
+            if (!$sid || !$token || !$twilioNumber) {
+                throw new Exception("SMS service configuration is missing.");
+            }
+
             $client = new TwilioClient($sid, $token);
             $client->messages->create(
                 $user->phone,
-                [
-                    'from' => $twilioNumber,
-                    'body' => "Your verification code is: $otp"
-                ]
+                ['from' => $twilioNumber, 'body' => "Your verification code is: $otp"]
             );
 
             return response()->json(['status' => 'success', 'message' => 'Code sent via SMS.']);
         } catch (Exception $e) {
-            return response()->json(['status' => 'error', 'message' => 'SMS failed: ' . $e->getMessage()], 500);
+            return response()->json(['status' => 'error', 'message' => 'SMS Gateway error: ' . $e->getMessage()], 500);
         }
     }
 
     public function verifyPhone(Request $request)
     {
-        $request->validate(['otp' => 'required|string']);
-        $user = $request->user();
+        try {
+            $request->validate(['otp' => 'required|string']);
+            $user = $request->user();
 
-        if ($user->phone_otp === $request->otp) {
-            $user->update([
-                'phone_verified_at' => now(),
-                'phone_otp' => null
-            ]);
-            return response()->json([
-                'status' => 'success',
-                'message' => 'Phone verified successfully.'
-            ]);
+            if ($user->phone_otp === $request->otp) {
+                $user->update([
+                    'phone_verified_at' => now(),
+                    'phone_otp' => null
+                ]);
+                return response()->json(['status' => 'success', 'message' => 'Phone verified successfully.']);
+            }
+
+            return response()->json(['status' => 'error', 'message' => 'Invalid or expired phone OTP.'], 422);
+        } catch (Exception $e) {
+            return response()->json(['status' => 'error', 'message' => 'Phone verification failed.'], 500);
         }
-
-        return response()->json([
-            'status' => 'error',
-            'message' => 'Invalid or expired OTP.'
-        ], 422);
     }
 
     /**
@@ -263,30 +281,31 @@ class AuthController extends Controller
      */
     public function updateProfile(Request $request)
     {
-        $user = $request->user();
+        try {
+            $user = $request->user();
 
-        $validator = Validator::make($request->all(), [
-            'phone'   => 'required|string|max:20',
-            'address' => 'required|string|max:500',
-        ]);
+            $validator = Validator::make($request->all(), [
+                'phone'   => 'required|string|max:20',
+                'address' => 'required|string|max:500',
+            ]);
 
-        if ($validator->fails()) {
+            if ($validator->fails()) {
+                return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
+            }
+
+            $user->update([
+                'phone'   => $request->phone,
+                'address' => $request->address,
+            ]);
+
             return response()->json([
-                'status' => 'error',
-                'errors' => $validator->errors()
-            ], 422);
+                'status' => 'success',
+                'message' => 'Profile updated successfully',
+                'data' => $user
+            ]);
+        } catch (Exception $e) {
+            return response()->json(['status' => 'error', 'message' => 'Profile update failed.'], 500);
         }
-
-        $user->update([
-            'phone'   => $request->phone,
-            'address' => $request->address,
-        ]);
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Profile updated successfully',
-            'data' => $user
-        ]);
     }
 
     /**
@@ -294,11 +313,15 @@ class AuthController extends Controller
      */
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
+        try {
+            $request->user()->currentAccessToken()->delete();
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Logged out successfully'
-        ]);
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Logged out successfully'
+            ]);
+        } catch (Exception $e) {
+            return response()->json(['status' => 'error', 'message' => 'Logout failed.'], 500);
+        }
     }
 }
