@@ -38,7 +38,7 @@ class ProductController extends Controller
             // 1. Filter by Category Name (via relationship)
             if ($request->filled('category')) {
                 $query->whereHas('category', function ($q) use ($request) {
-                    $q->where('name', $request->category);
+                    $q->where('categories.name', $request->category);
                 });
             }
 
