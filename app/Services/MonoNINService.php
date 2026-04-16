@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Log;
 class MonoNINService
 {
     protected $baseUrl;
+
     protected $secretKey;
 
     public function __construct()
@@ -33,8 +34,8 @@ class MonoNINService
                 return [
                     'status' => 'success',
                     'message' => 'NIN already verified',
-                    'data' => json_decode($existingVerification->response_data, true),
-                    'from_cache' => true
+                    'data' => $existingVerification->response_data,
+                    'from_cache' => true,
                 ];
             }
 
@@ -43,7 +44,7 @@ class MonoNINService
                 'nin' => $nin,
                 'status' => 'pending',
                 'verification_status' => 'pending',
-                'request_data' => ['nin' => $nin]
+                'request_data' => ['nin' => $nin],
             ]);
 
             // Make API request to Mono
@@ -51,8 +52,8 @@ class MonoNINService
                 'accept' => 'application/json',
                 'content-type' => 'application/json',
                 'mono-sec-key' => $this->secretKey,
-            ])->post($this->baseUrl . '/lookup/nin', [
-                'nin' => $nin
+            ])->post($this->baseUrl.'/lookup/nin', [
+                'nin' => $nin,
             ]);
 
             // Log the response
@@ -63,11 +64,11 @@ class MonoNINService
 
             if ($response->successful()) {
                 $data = $response->json();
-                
+
                 // Check if the response has the expected structure
                 if (isset($data['status']) && $data['status'] === 'successful') {
                     $ninData = $data['data'];
-                    
+
                     // Update log with detailed information
                     $log->update([
                         'verification_status' => 'verified',
@@ -90,7 +91,7 @@ class MonoNINService
                         'status' => 'success',
                         'message' => $data['message'] ?? 'NIN verified successfully',
                         'data' => $ninData,
-                        'tracking_id' => $ninData['tracking_id'] ?? null
+                        'tracking_id' => $ninData['tracking_id'] ?? null,
                     ];
                 }
             }
@@ -101,24 +102,24 @@ class MonoNINService
             return [
                 'status' => 'error',
                 'message' => $response->json()['message'] ?? 'NIN verification failed',
-                'error' => $response->json()
+                'error' => $response->json(),
             ];
 
         } catch (\Exception $e) {
-            Log::error('Mono NIN Verification Error: ' . $e->getMessage());
-            
+            Log::error('Mono NIN Verification Error: '.$e->getMessage());
+
             // Update log if it exists
             if (isset($log)) {
                 $log->update([
                     'verification_status' => 'failed',
-                    'response_data' => ['error' => $e->getMessage()]
+                    'response_data' => ['error' => $e->getMessage()],
                 ]);
             }
 
             return [
                 'status' => 'error',
                 'message' => 'NIN verification service error',
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ];
         }
     }
