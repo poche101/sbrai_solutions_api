@@ -43,4 +43,9 @@ class Product extends Model
     public function vendor() {
         return $this->belongsTo(User::class, 'vendor_id');
     }
+
+    public function favorites()
+    {
+        return $this->morphMany(Favorite::class, 'favoritable');
+    }
 }
