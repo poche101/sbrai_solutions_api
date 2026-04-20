@@ -9,12 +9,22 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use App\Traits\Favoritable;
+use Intervention\Image\Drivers\Gd\Driver;
+use Intervention\Image\ImageManager;
 
 class ServiceController extends Controller
 {
+    use Favoritable;
 
-use Favoritable;
+    protected $imageManager;
+
+    public function __construct()
+    {
+        $this->imageManager = new ImageManager(new Driver);
+    }
+
     /**
      * Create a new service
      */
@@ -52,6 +62,7 @@ use Favoritable;
                 ], 201);
             });
         } catch (\Exception $e) {
+            Log::error('Service Store Error: ' . $e->getMessage());
             return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
         }
     }
@@ -75,7 +86,6 @@ use Favoritable;
                     'service_category_id', 'title', 'description', 'price', 'price_unit', 'location'
                 ]));
 
-                // Update slug if title changed
                 if ($request->has('title')) {
                     $service->slug = Str::slug($request->title) . '-' . time();
                     $service->save();
@@ -93,6 +103,7 @@ use Favoritable;
                 ]);
             });
         } catch (\Exception $e) {
+            Log::error('Service Update Error: ' . $e->getMessage());
             return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
         }
     }
@@ -105,8 +116,10 @@ use Favoritable;
         $service = Service::findOrFail($id);
 
         try {
-            // Note: The physical file deletion is handled by the "booted" method
-            // we added to the Service Model earlier.
+            foreach ($service->photos as $photo) {
+                Storage::disk('public')->delete($photo->image_path);
+            }
+            
             $service->delete();
 
             return response()->json([
@@ -114,12 +127,13 @@ use Favoritable;
                 'message' => 'Service and associated photos deleted successfully'
             ]);
         } catch (\Exception $e) {
+            Log::error('Service Destroy Error: ' . $e->getMessage());
             return response()->json(['status' => false, 'message' => $e->getMessage()], 500);
         }
     }
 
     /**
-     * Helper Method: Handle Base64 Uploads
+     * Helper Method: Handle Base64 Uploads with Watermark
      */
     private function uploadImages($service, array $images)
     {
@@ -135,12 +149,72 @@ use Favoritable;
                 $path = "services/photos/{$fileName}";
 
                 Storage::disk('public')->put($path, $decodedData);
+                
+                $this->applyWatermark($path);
 
                 ServicePhoto::create([
                     'service_id' => $service->id,
                     'image_path' => $path
                 ]);
             }
+        }
+    }
+
+    /**
+     * Apply watermark to an image file.
+     */
+    private function applyWatermark($imagePath)
+    {
+        try {
+            $fullPath = Storage::disk('public')->path($imagePath);
+            
+            if (!file_exists($fullPath)) {
+                Log::error('Watermark Error: Image not found at path: ' . $fullPath);
+                return false;
+            }
+            
+            $img = $this->imageManager->read($fullPath);
+            $watermarkPath = public_path('images/watermark.png');
+            
+            if (file_exists($watermarkPath)) {
+                $watermark = $this->imageManager->read($watermarkPath);
+                $img->place($watermark, 'bottom-right', 10, 10);
+                $img->save($fullPath);
+                return true;
+            } else {
+                Log::warning('Watermark file not found at: ' . $watermarkPath);
+                return false;
+            }
+        } catch (\Exception $e) {
+            Log::error('Watermark Error: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Optional: Add a method to delete specific images from a service
+     */
+    public function deleteImage($serviceId, $photoId)
+    {
+        try {
+            $service = Service::findOrFail($serviceId);
+            $photo = $service->photos()->findOrFail($photoId);
+            
+            Storage::disk('public')->delete($photo->image_path);
+            
+            // Delete record from database
+            $photo->delete();
+            
+            return response()->json([
+                'status' => true,
+                'message' => 'Image deleted successfully'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Delete Image Error: ' . $e->getMessage());
+            return response()->json([
+                'status' => false,
+                'message' => 'Failed to delete image'
+            ], 500);
         }
     }
 }

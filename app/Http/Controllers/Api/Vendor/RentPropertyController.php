@@ -9,11 +9,22 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use App\Traits\Favoritable;
+use Intervention\Image\Drivers\Gd\Driver;
+use Intervention\Image\ImageManager;
 
 class RentPropertyController extends Controller {
 
-use Favoritable;
+    use Favoritable;
+
+    protected $imageManager;
+
+    public function __construct()
+    {
+        $this->imageManager = new ImageManager(new Driver);
+    }
+
     public function index() {
         return response()->json([
             'status' => true,
@@ -39,7 +50,10 @@ use Favoritable;
                     $data = base64_decode(substr($base64, strpos($base64, ',') + 1));
                     $path = "properties/rent/" . Str::random(20) . '.' . $type[1];
                     Storage::disk('public')->put($path, $data);
-
+                    
+                    // Apply watermark to the saved image
+                    $this->applyWatermark($path);
+                    
                     RentPropertyImage::create([
                         'rent_property_id' => $property->id,
                         'image_path' => $path
@@ -56,12 +70,76 @@ use Favoritable;
 
     public function update(Request $request, $id) {
         $property = RentProperty::findOrFail($id);
-        $property->update($request->all());
-        return response()->json(['status' => true, 'data' => $property]);
+        
+        DB::transaction(function () use ($request, $property) {
+            $property->update($request->all());
+   
+            if ($request->has('images') && is_array($request->images)) {
+                foreach ($property->images as $oldImage) {
+                    Storage::disk('public')->delete($oldImage->image_path);
+                    $oldImage->delete();
+                }
+                
+                foreach ($request->images as $base64) {
+                    if (preg_match('/^data:image\/(\w+);base64,/', $base64, $type)) {
+                        $data = base64_decode(substr($base64, strpos($base64, ',') + 1));
+                        $path = "properties/rent/" . Str::random(20) . '.' . $type[1];
+                        Storage::disk('public')->put($path, $data);
+                        
+                        $this->applyWatermark($path);
+                        
+                        RentPropertyImage::create([
+                            'rent_property_id' => $property->id,
+                            'image_path' => $path
+                        ]);
+                    }
+                }
+            }
+        });
+        
+        return response()->json(['status' => true, 'data' => $property->load('images')]);
     }
 
     public function destroy($id) {
-        RentProperty::findOrFail($id)->delete();
+        $property = RentProperty::findOrFail($id);
+        
+        foreach ($property->images as $image) {
+            Storage::disk('public')->delete($image->image_path);
+        }
+        
+        $property->delete();
+        
         return response()->json(['status' => true, 'message' => 'Deleted successfully']);
+    }
+    
+    /**
+     * Apply watermark to an image file.
+     */
+    private function applyWatermark($imagePath)
+    {
+        try {
+            $fullPath = Storage::disk('public')->path($imagePath);
+            
+            if (!file_exists($fullPath)) {
+                Log::error('Watermark Error: Image not found at path: ' . $fullPath);
+                return false;
+            }
+            
+            $img = $this->imageManager->read($fullPath);
+            $watermarkPath = public_path('images/watermark.png');
+            
+            if (file_exists($watermarkPath)) {
+                $watermark = $this->imageManager->read($watermarkPath);
+                $img->place($watermark, 'bottom-right', 10, 10);
+                $img->save($fullPath);
+                return true;
+            } else {
+                Log::warning('Watermark file not found at: ' . $watermarkPath);
+                return false;
+            }
+        } catch (\Exception $e) {
+            Log::error('Watermark Error: ' . $e->getMessage());
+            return false;
+        }
     }
 }
