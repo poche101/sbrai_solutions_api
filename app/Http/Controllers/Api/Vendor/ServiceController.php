@@ -25,6 +25,21 @@ class ServiceController extends Controller
         $this->imageManager = new ImageManager(new Driver);
     }
 
+    public function index(Request $request)
+{
+    $query = Service::query()->with('photos');
+
+    // Filter by category if provided in the request
+    if ($request->has('category_id')) {
+        $query->where('service_category_id', $request->category_id);
+    }
+
+    return response()->json([
+        'status' => true,
+        'data' => $query->get()
+    ]);
+}
+
     /**
      * Create a new service
      */
@@ -119,7 +134,7 @@ class ServiceController extends Controller
             foreach ($service->photos as $photo) {
                 Storage::disk('public')->delete($photo->image_path);
             }
-            
+
             $service->delete();
 
             return response()->json([
@@ -135,30 +150,35 @@ class ServiceController extends Controller
     /**
      * Helper Method: Handle Base64 Uploads with Watermark
      */
-    private function uploadImages($service, array $images)
-    {
-        foreach ($images as $base64Image) {
-            if (preg_match('/^data:image\/(\w+);base64,/', $base64Image, $type)) {
-                $data = substr($base64Image, strpos($base64Image, ',') + 1);
-                $extension = strtolower($type[1]);
-                $decodedData = base64_decode($data);
+   private function uploadImages($service, array $images)
+{
+    foreach ($images as $base64Image) {
+        // 1. Detect the file type and clean the Base64 string
+        if (preg_match('/^data:image\/(\w+);base64,/', $base64Image, $type)) {
+            $data = substr($base64Image, strpos($base64Image, ',') + 1);
+            $extension = strtolower($type[1]); // e.g., png, jpg
+            $decodedData = base64_decode($data);
 
-                if ($decodedData === false) continue;
+            if ($decodedData === false) continue;
 
-                $fileName = Str::random(20) . '.' . $extension;
-                $path = "services/photos/{$fileName}";
+            // 2. Generate a unique name to prevent overwriting
+            $fileName = Str::random(20) . '.' . $extension;
+            $path = "services/photos/{$fileName}";
 
-                Storage::disk('public')->put($path, $decodedData);
-                
-                $this->applyWatermark($path);
+            // 3. Save the actual file to storage/app/public/services/photos
+            Storage::disk('public')->put($path, $decodedData);
 
-                ServicePhoto::create([
-                    'service_id' => $service->id,
-                    'image_path' => $path
-                ]);
-            }
+            // 4. Apply your watermark (as you have in your logic)
+            $this->applyWatermark($path);
+
+            // 5. Save the relationship in the database
+            ServicePhoto::create([
+                'service_id' => $service->id,
+                'image_path' => $path
+            ]);
         }
     }
+}
 
     /**
      * Apply watermark to an image file.
@@ -167,15 +187,15 @@ class ServiceController extends Controller
     {
         try {
             $fullPath = Storage::disk('public')->path($imagePath);
-            
+
             if (!file_exists($fullPath)) {
                 Log::error('Watermark Error: Image not found at path: ' . $fullPath);
                 return false;
             }
-            
+
             $img = $this->imageManager->read($fullPath);
             $watermarkPath = public_path('images/watermark.png');
-            
+
             if (file_exists($watermarkPath)) {
                 $watermark = $this->imageManager->read($watermarkPath);
                 $img->place($watermark, 'bottom-right', 10, 10);
@@ -199,12 +219,12 @@ class ServiceController extends Controller
         try {
             $service = Service::findOrFail($serviceId);
             $photo = $service->photos()->findOrFail($photoId);
-            
+
             Storage::disk('public')->delete($photo->image_path);
-            
+
             // Delete record from database
             $photo->delete();
-            
+
             return response()->json([
                 'status' => true,
                 'message' => 'Image deleted successfully'

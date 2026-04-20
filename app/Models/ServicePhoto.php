@@ -4,11 +4,20 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Storage;
 
 class ServicePhoto extends Model
 {
-    // 1. Allow these fields to be filled by the Controller
+    /**
+     * Fields that are mass-assignable.
+     */
     protected $fillable = ['service_id', 'image_path'];
+
+    /**
+     * The attributes that should be visible in your JSON response for Flutter.
+     * Adding 'image_url' here ensures it's always included in the API.
+     */
+    protected $appends = ['image_url'];
 
     /**
      * Relationship: A photo belongs to one service.
@@ -19,14 +28,26 @@ class ServicePhoto extends Model
     }
 
     /**
-     * Accessor: Automatically turns 'services/photos/abc.jpg'
-     * into 'http://localhost:8000/storage/services/photos/abc.jpg'
+     * Accessor: Returns the raw path stored in the database.
+     * This is kept clean so backend file deletion still works.
      */
     public function getImagePathAttribute($value)
     {
-        if (!$value) return null;
+        return $value;
+    }
 
-        // This ensures the URL is correct for your API response
-        return asset('storage/' . $value);
+    /**
+     * Accessor: Generates a full, clickable URL for your Flutter frontend.
+     * Usage in Flutter: product['image_url']
+     */
+    public function getImageUrlAttribute()
+    {
+        if (!$this->image_path) {
+            return null;
+        }
+
+        // Using Storage::url is safer than asset() if you move to S3/Cloudinary later.
+        // It automatically handles the /storage/ prefix if your disk is set to 'public'.
+        return asset('storage/' . $this->image_path);
     }
 }
