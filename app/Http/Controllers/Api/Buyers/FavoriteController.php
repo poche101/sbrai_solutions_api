@@ -11,7 +11,7 @@ class FavoriteController extends Controller
     // GET: Fetch all favorite items
     public function index()
     {
-        $favorites = Auth::user()->favorites()->get();
+        $favorites = Auth::user()->favorites();
         return response()->json([
             'status' => 'success',
             'count' => $favorites->count(),
