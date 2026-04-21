@@ -53,7 +53,7 @@ class ServiceController extends Controller
             'price_unit'          => 'nullable|string',
             'location'            => 'nullable|string',
             'images'              => 'required|array',
-            'images.*'            => 'required|string',
+            'images.*'            => 'image|mimes:jpeg,png,jpg|max:5120', // Max 5MB per image
         ]);
 
         try {
@@ -150,33 +150,35 @@ class ServiceController extends Controller
     /**
      * Helper Method: Handle Base64 Uploads with Watermark
      */
-   private function uploadImages($service, array $images)
+  private function uploadImages($service, array $images)
 {
-    foreach ($images as $base64Image) {
-        // 1. Detect the file type and clean the Base64 string
-        if (preg_match('/^data:image\/(\w+);base64,/', $base64Image, $type)) {
-            $data = substr($base64Image, strpos($base64Image, ',') + 1);
-            $extension = strtolower($type[1]); // e.g., png, jpg
+    foreach ($images as $image) {
+        // CASE 1: Handle Multipart File Upload (Recommended for Flutter)
+        if ($image instanceof \Illuminate\Http\UploadedFile) {
+            $extension = $image->getClientOriginalExtension();
+            $fileName = Str::random(20) . '.' . $extension;
+            $path = $image->storeAs('services/photos', $fileName, 'public');
+        }
+        // CASE 2: Handle Base64 String (Fallback)
+        else if (is_string($image) && preg_match('/^data:image\/(\w+);base64,/', $image, $type)) {
+            $data = substr($image, strpos($image, ',') + 1);
+            $extension = strtolower($type[1]);
             $decodedData = base64_decode($data);
-
             if ($decodedData === false) continue;
 
-            // 2. Generate a unique name to prevent overwriting
             $fileName = Str::random(20) . '.' . $extension;
             $path = "services/photos/{$fileName}";
-
-            // 3. Save the actual file to storage/app/public/services/photos
             Storage::disk('public')->put($path, $decodedData);
-
-            // 4. Apply your watermark (as you have in your logic)
-            $this->applyWatermark($path);
-
-            // 5. Save the relationship in the database
-            ServicePhoto::create([
-                'service_id' => $service->id,
-                'image_path' => $path
-            ]);
+        } else {
+            continue;
         }
+
+        // Apply watermark & Save to DB
+        $this->applyWatermark($path);
+        ServicePhoto::create([
+            'service_id' => $service->id,
+            'image_path' => $path
+        ]);
     }
 }
 
